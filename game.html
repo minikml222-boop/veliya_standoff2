@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SO2 CASE SIMULATOR</title>
+    <style>
+        :root {
+            --common: #b5b5b5;     /* Grey */
+            --uncommon: #5e98d9;   /* Blue-ish */
+            --rare: #4b69ff;       /* Blue */
+            --legendary: #d32ce6;  /* Pink (Pink for Legendary) */
+            --arcana: #eb4b4b;     /* Red (Red for Arcana) */
+            --gold: #ffd700;
+        }
+        * { user-select: none; box-sizing: border-box; }
+        body {
+            background: radial-gradient(circle, #1a1a2e 0%, #0f0f1a 100%);
+            min-height: 100vh; display: flex; justify-content: center; align-items: center;
+            font-family: 'Segoe UI', sans-serif; margin: 0; color: white;
+        }
+        .container {
+            background: #161625; width: 100%; max-width: 450px; padding: 20px;
+            border-radius: 30px; border: 2px solid #2e2e4a; text-align: center;
+        }
+        .stats { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .balance { color: var(--gold); font-size: 1.2rem; font-weight: bold; }
+
+        .btn-farm {
+            background: linear-gradient(145deg, #28a745, #1e7e34);
+            color: white; border: none; padding: 12px; width: 100%;
+            border-radius: 15px; font-weight: bold; cursor: pointer; margin-bottom: 15px;
+        }
+
+        .case-visual {
+            width: 150px; height: 150px; margin: 15px auto;
+            background: #2e2e4a; border-radius: 20px; display: flex;
+            justify-content: center; align-items: center;
+            border: 3px solid var(--gold); overflow: hidden;
+        }
+        .case-visual img { width: 100%; height: 100%; object-fit: contain; display: none; }
+        .case-visual .placeholder { font-size: 4rem; }
+        .case-visual.shaking { animation: shake 0.5s infinite; }
+        @keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
+
+        .inventory {
+            background: #0f0f1a; border-radius: 15px; padding: 10px;
+            margin-top: 20px; height: 220px; overflow-y: auto; border: 1px solid #2e2e4a;
+        }
+        .item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid #222; font-size: 0.85rem;
+        }
+        .item-info { display: flex; align-items: center; gap: 10px; }
+        .item-icon { width: 35px; height: 35px; object-fit: contain; border-radius: 5px; }
+
+        .sell-btn {
+            background: #eb4b4b; color: white; border: none; padding: 5px 10px;
+            border-radius: 5px; cursor: pointer; font-size: 0.7rem; font-weight: bold;
+        }
+        .btn-open {
+            background: var(--gold); color: black; border: none; padding: 15px;
+            border-radius: 50px; font-weight: bold; width: 100%; cursor: pointer;
+        }
+        .btn-open:disabled { background: #555; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="stats">
+        <div class="balance">G: <span id="balance">100</span></div>
+        <div>Инвентарь: <span id="invCount">0</span></div>
+    </div>
+
+    <button class="btn-farm" onclick="addMoney()">💰 ФАРМИТЬ ГОЛДУ (+10)</button>
+
+    <div class="case-visual" id="caseBox">
+        <span class="placeholder">📦</span>
+        <img id="dropImg" src="" alt="Drop">
+    </div>
+    <h3 id="status" style="margin: 10px 0; font-size: 1rem;">Empire Collection</h3>
+
+    <button class="btn-open" id="openBtn" onclick="openCase()">ОТКРЫТЬ (100G)</button>
+
+    <div class="inventory" id="inventory"></div>
+</div>
+
+<script>
+    let balance = 100;
+    let inventory = [];
+
+    // Привязка твоих файлов
+    const loot = [
+        { name: "M40 'Cursed Fire'", rarity: "Common", color: "#b5b5b5", img: "images(4).jpg", price: 5, chance: 40 },
+        { name: "AK12 'Mechanic'", rarity: "Uncommon", color: "#5e98d9", img: "2Q==(2).jpg", price: 15, chance: 30 },
+        { name: "M4A1 'Kitsune'", rarity: "Rare", color: "#4b69ff", img: "2Q==(1).jpg", price: 50, chance: 18 },
+        { name: "M16 'Triumphant'", rarity: "Legendary", color: "#d32ce6", img: "2Q==(3).jpg", price: 350, chance: 10 },
+        { name: "M4 'Samurai'", rarity: "Arcana", color: "#eb4b4b", img: "Z.jpg", price: 1500, chance: 2 }
+    ];
+
+    function addMoney() { balance += 10; updateUI(); }
+
+    function updateUI() {
+        document.getElementById('balance').innerText = balance;
+        document.getElementById('invCount').innerText = inventory.length;
+        document.getElementById('openBtn').disabled = balance < 100;
+    }
+
+    function openCase() {
+        if (balance < 100) return;
+        balance -= 100;
+        updateUI();
+
+        const box = document.getElementById('caseBox');
+        const placeholder = box.querySelector('.placeholder');
+        const dropImg = document.getElementById('dropImg');
+        const status = document.getElementById('status');
+        const btn = document.getElementById('openBtn');
+
+        btn.disabled = true;
+        box.classList.add('shaking');
+        placeholder.style.display = 'block';
+        dropImg.style.display = 'none';
+        status.innerText = "ОТКРЫТИЕ...";
+        status.style.color = 'white';
+
+        setTimeout(() => {
+            box.classList.remove('shaking');
+            const rolled = getLoot();
+            const itemWithId = { ...rolled, id: Date.now() };
+            inventory.unshift(itemWithId);
+            
+            placeholder.style.display = 'none';
+            dropImg.src = rolled.img;
+            dropImg.style.display = 'block';
+            
+            box.style.borderColor = rolled.color;
+            status.innerText = rolled.name;
+            status.style.color = rolled.color;
+            
+            renderInventory();
+            updateUI();
+        }, 1200);
+    }
+
+    function getLoot() {
+        const rand = Math.random() * 100;
+        let cum = 0;
+        for (const item of loot) {
+            cum += item.chance;
+            if (rand <= cum) return item;
+        }
+        return loot[0];
+    }
+
+    function sellItem(id) {
+        const index = inventory.findIndex(i => i.id === id);
+        if (index > -1) {
+            balance += inventory[index].price;
+            inventory.splice(index, 1);
+            renderInventory();
+            updateUI();
+        }
+    }
+
+    function renderInventory() {
+        const invEl = document.getElementById('inventory');
+        if (inventory.length === 0) {
+            invEl.innerHTML = '<div style="color:#444;margin-top:80px">Инвентарь пуст</div>';
+            return;
+        }
+        invEl.innerHTML = inventory.map(i => `
+            <div class="item">
+                <div class="item-info">
+                    <img src="${i.img}" class="item-icon" style="border: 1px solid ${i.color}">
+                    <div>
+                        <div style="color:${i.color};font-weight:bold">${i.name}</div>
+                        <div style="font-size:0.65rem;color:#666">${i.rarity} | ${i.price}G</div>
+                    </div>
+                </div>
+                <button class="sell-btn" onclick="sellItem(${i.id})">ПРОДАТЬ</button>
+            </div>
+        `).join('');
+    }
+
+    renderInventory();
+    updateUI();
+</script>
+</body>
+</html>
